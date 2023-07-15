@@ -32,6 +32,7 @@ class Logger : noncopyable {
         logger.setLogLevel(INFO);                                                                                      \
         char buf[1024];                                                                                                \
         snprintf(buf, 1024, logmsgFormat, ##__VA_ARGS__);                                                              \
+        logger.log(buf);\
     } while (0)
 
 #define LOG_ERROR(logmsgFormat, ...)                                                                                   \
@@ -40,6 +41,7 @@ class Logger : noncopyable {
         logger.setLogLevel(ERROR);                                                                                     \
         char buf[1024];                                                                                                \
         snprintf(buf, 1024, logmsgFormat, ##__VA_ARGS__);                                                              \
+        logger.log(buf);\
     } while (0)
 
 #define LOG_FATAL(logmsgFormat, ...)                                                                                   \
@@ -48,6 +50,7 @@ class Logger : noncopyable {
         logger.setLogLevel(FATAL);                                                                                     \
         char buf[1024];                                                                                                \
         snprintf(buf, 1024, logmsgFormat, ##__VA_ARGS__);                                                              \
+        logger.log(buf);\
         exit(-1);                                                                                                      \
     } while (0)
 
@@ -58,6 +61,7 @@ class Logger : noncopyable {
         logger.setLogLevel(DEBUG);                                                                                     \
         char buf[1024];                                                                                                \
         snprintf(buf, 1024, logmsgFormat, ##__VA_ARGS__);                                                              \
+        logger.log(buf);\
     } while (0)
 #else
 #define LOG_DEBUG(logmsgFormat, ...)
