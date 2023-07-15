@@ -88,6 +88,8 @@ void TcpServer::newConnection(int sockfd, const InetAddress &peerAddr) {
     );
 
     // 直接调用 TcpConnection::connectEstablished
+    // 1. 设置了 threadNum 就会进入 queueInLoop <-- subLoop
+    // 2. 没有设置 threadNum 就直接进入 runInLoop 的 cb() <-- baseLoop
     ioLoop->runInLoop(std::bind(&TcpConnection::connectEstablished, conn));
 }
 

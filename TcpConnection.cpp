@@ -137,7 +137,7 @@ void TcpConnection::handleClose() {
     setState(kDisconnected);
     channel_->disableAll();
 
-    //!TODO: 为啥还需要 connectionCallback_ 这不是新连接的回调吗
+    //!NOTE: 这里再次调用 connectionCallback_ 处理断开事件的 callback
     TcpConnectionPtr connPtr(shared_from_this());
     connectionCallback_(connPtr);
     closeCallback_(connPtr);  // 关闭连接的回调 => TcpServer::removeConnection

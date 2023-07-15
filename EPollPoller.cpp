@@ -25,7 +25,7 @@ EPollPoller::~EPollPoller() { ::close(epollfd_); }
 
 Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels) {
     // poll 调用时非常频繁的，实际上使用 LOG_DEBUG 更合适
-    LOG_INFO("func=%s => fd total count: %lu \n", __FUNCTION__, activeChannels->size());
+    LOG_INFO("func = %s => fd total count: %lu \n", __FUNCTION__, activeChannels->size());
 
     int numEvents = ::epoll_wait(epollfd_, &(*events_.begin()), static_cast<int>(events_.size()), timeoutMs);
     int savedErrno = errno;  // 防止多线程改变 errno
@@ -59,7 +59,8 @@ Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels) {
  */
 void EPollPoller::updateChannel(Channel *channel) {
     const int index = channel->index();
-    LOG_INFO("func=%s => fd=%d events=%d index=%d \n", __FUNCTION__, channel->fd(), channel->events(), index);
+    LOG_INFO("func = %s => fd = %d, events = %d, index = %d \n", 
+        __FUNCTION__, channel->fd(), channel->events(), index);
 
     // 理解 kNew, kAdded, kDeleted 之间的逻辑
     if (index == kNew || index == kDeleted) {
@@ -86,7 +87,7 @@ void EPollPoller::removeChannel(Channel *channel) {
     int fd = channel->fd();
     channels_.erase(fd);
 
-    LOG_INFO("func=%s => fd=%d\n", __FUNCTION__, fd);
+    LOG_INFO("func = %s => fd = %d\n", __FUNCTION__, fd);
 
     int index = channel->index();
     if (index == kAdded) {
@@ -112,8 +113,9 @@ void EPollPoller::update(int operation, Channel *channel) {
 
     epoll_event event;
     bzero(&event, sizeof(event));
+
     event.events = channel->events();
-    // event.data.fd = fd; // todo: 应该不能一起使用吧
+    // event.data.fd = fd; //!TODO: 应该不能一起使用吧
     event.data.ptr = channel;  // 注意这里 ptr 是 void* 类型，之间通常使用的是 fd
 
     if (::epoll_ctl(epollfd_, operation, fd, &event) < 0) {

@@ -45,7 +45,7 @@ void EventLoopThread::threadFunc() {
         cond_.notify_one();
     }
 
-    loop.loop();  // EventLoop loop => Poller.poll
+    loop.loop();  // EventLoop loop => Poller->poll
     std::unique_lock<std::mutex> lock(mutex_);
     loop_ = nullptr;
 }
