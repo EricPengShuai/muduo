@@ -1,12 +1,18 @@
 #include "EventLoopThreadPool.h"
+#include "EventLoopThread.h"
 
 EventLoopThreadPool::EventLoopThreadPool(EventLoop *baseLoop, const std::string &nameArg)
-    : baseLoop_(baseLoop), name_(nameArg), started_(false), numThreads_(0), next_(0) {}
+    : baseLoop_(baseLoop)
+    , name_(nameArg)
+    , started_(false)
+    , numThreads_(0)
+    , next_(0) {}
 
 EventLoopThreadPool::~EventLoopThreadPool() {
-    // EventLoop 都是 stack 上的，不许手动释放
+    // EventLoop 都是 stack 上的，不需要手动释放
 }
 
+// 创建 numThreads_ 个线程，并获取对应的 loop, one loop per thread
 void EventLoopThreadPool::start(const ThreadInitCallback &cb) {
     started_ = true;
 
@@ -21,7 +27,7 @@ void EventLoopThreadPool::start(const ThreadInitCallback &cb) {
     }
 
     // 整个服务端只有一个线程，运行着 baseLoop
-    if (numThreads_ == 0) {
+    if (numThreads_ == 0 && cb) {
         cb(baseLoop_);
     }
 }
@@ -33,7 +39,7 @@ EventLoop *EventLoopThreadPool::getNextLoop() {
     if (!loops_.empty())  // 通过轮询获取下一个处理事件的 loop
     {
         loop = loops_[next_];
-        ++next_;
+        ++ next_;
         if (next_ >= loops_.size()) {
             next_ = 0;
         }

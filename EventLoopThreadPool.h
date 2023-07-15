@@ -1,13 +1,14 @@
 #pragma once
 
-#include "EventLoop.h"
-#include "EventLoopThread.h"
 #include "noncopyable.h"
 
 #include <functional>
 #include <memory>
 #include <string>
 #include <vector>
+
+class EventLoop;
+class EventLoopThread;
 
 class EventLoopThreadPool {
   public:
@@ -33,7 +34,7 @@ class EventLoopThreadPool {
     std::string name_;
     bool started_;
     int numThreads_;
-    int next_;
+    int next_; // 轮询下标
     std::vector<std::unique_ptr<EventLoopThread>> threads_;
     std::vector<EventLoop *> loops_;
 };
