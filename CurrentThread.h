@@ -5,7 +5,8 @@
 
 // 获取当前线程 id
 namespace CurrentThread {
-// todo: __thread 是 thread_local 机制
+
+//!TODO: __thread 是 thread_local 机制
 extern __thread int t_cachedTid;
 
 void cacheTid();
