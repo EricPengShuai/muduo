@@ -4,7 +4,7 @@
 
 #include <semaphore.h>
 
-std::atomic_int numCreated_(0);  // 静态成员类外初始化
+std::atomic_int Thread::numCreated_(0);  // 静态成员类外初始化
 
 Thread::Thread(ThreadFunc func, const std::string &name)
     : started_(false), joined_(false), tid_(0), func_(std::move(func)), name_(name) {
