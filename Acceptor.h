@@ -25,6 +25,8 @@ class Acceptor : noncopyable {
     EventLoop *loop_;
     Socket acceptSocket_;
     Channel acceptChannel_;
+
+    // 将 accept 到的 connfd 绑定到 channel 上并注册事件，由上层 TcpServer 设置回调
     NewConnectionCallback newConnectionCallback_;
     bool listening_;
 };

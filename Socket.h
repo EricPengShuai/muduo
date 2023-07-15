@@ -16,8 +16,9 @@ class Socket : noncopyable {
     void listen();
     int accept(InetAddress *peeraddr);
 
-    void shutdwonWrite();
+    void shutdownWrite();
 
+    // 设置 sockfd 选项
     void setTcpNoDelay(bool on);
     void setReuseAddr(bool on);
     void setReusePort(bool on);

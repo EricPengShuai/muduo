@@ -213,6 +213,6 @@ void TcpConnection::sendInLoop(const void *data, size_t len) {
 
 void TcpConnection::shutdownInLoop() {
     if (!channel_->isWriting()) {
-        socket_->shutdwonWrite();
+        socket_->shutdownWrite();
     }
 }

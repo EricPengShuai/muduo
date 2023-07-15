@@ -13,7 +13,7 @@ const int kDeleted = 2;  // channel 被 poller 删除
 
 EPollPoller::EPollPoller(EventLoop *loop)
     : Poller(loop)
-    , epollfd_(::epoll_create1(EPOLL_CLOEXEC))  //!TODO: 理解一下 EPOLL_CLOEXEC
+    , epollfd_(::epoll_create1(EPOLL_CLOEXEC))  //!NOTE: EPOLL_CLOEXEC 表示子进程不会继承父进程的 fd
     , events_(kInitEventListSize)               // vector<epoll_event>
 {
     if (epollfd_ < 0) {
@@ -23,8 +23,9 @@ EPollPoller::EPollPoller(EventLoop *loop)
 
 EPollPoller::~EPollPoller() { ::close(epollfd_); }
 
+// 实际就是 epoll_wait 等待感兴趣的事件，并且通过 fillActiveChannels 告知 EventLoop 活跃的 channels
 Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels) {
-    // poll 调用时非常频繁的，实际上使用 LOG_DEBUG 更合适
+    //!TODO: poll 调用时非常频繁的，使用 LOG_DEBUG 更合适
     LOG_INFO("func = %s => fd total count: %lu \n", __FUNCTION__, activeChannels->size());
 
     int numEvents = ::epoll_wait(epollfd_, &(*events_.begin()), static_cast<int>(events_.size()), timeoutMs);
@@ -41,19 +42,30 @@ Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels) {
     } else if (numEvents == 0) {  // 超时
         LOG_DEBUG("%s timeout! \n", __FUNCTION__);
     } else {  // 错误
-        if (savedErrno != EINTR) {
+        if (savedErrno != EINTR) { // 外部中断还需要继续处理
             errno = savedErrno;
-            LOG_ERROR("EPollPoller::poll() err!");
+            LOG_ERROR("EPollPoller::poll() err! errno=%d", errno);
         }
     }
     return now;
 }
 
+// activeChannels->push_back 以便让 EventLoop 获取 channel 列表
+void EPollPoller::fillActiveChannels(int numEvents, ChannelList *activeChannels) const {
+    for (int i = 0; i < numEvents; ++i) {
+        Channel *channel = static_cast<Channel *>(events_[i].data.ptr);
+        channel->set_revents(events_[i].events);
+
+        // EventLoop 就拿到了它的 Poller 给他返回的所有发生事件的 channel 列表了
+        activeChannels->push_back(channel);
+    }
+}
+
 /**
- * [Channel] update/remove --> [EventLoop] updateChannel/removeChannel
- *      --> [EPollPoller] updateChannel/removeChannel
+ * 调用关系
+ * [Channel] update/remove -> [EventLoop] updateChannel/removeChannel -> [EPollPoller] updateChannel/removeChannel
  *
- *          EventLoop
+ *           EventLoop
  *  ChannelList     Poller
  *                  ChannelMap <fd, channel*>
  */
@@ -87,24 +99,14 @@ void EPollPoller::removeChannel(Channel *channel) {
     int fd = channel->fd();
     channels_.erase(fd);
 
-    LOG_INFO("func = %s => fd = %d\n", __FUNCTION__, fd);
+    LOG_INFO("func = %s:%s => fd = %d\n", __FILE__, __FUNCTION__, fd);
 
-    int index = channel->index();
+    int index = channel->index(); // 获取 channel 的状态
     if (index == kAdded) {
         update(EPOLL_CTL_DEL, channel);
     }
 
     channel->set_index(kNew);
-}
-
-void EPollPoller::fillActiveChannels(int numEvents, ChannelList *activeChannels) const {
-    for (int i = 0; i < numEvents; ++i) {
-        Channel *channel = static_cast<Channel *>(events_[i].data.ptr);
-        channel->set_revents(events_[i].events);
-
-        // EventLoop 就拿到了它的 Poller 给他返回的所有发生事件的 channel 列表了
-        activeChannels->push_back(channel);
-    }
 }
 
 // 更新 channel 通道 epoll_ctl add/mod/del
@@ -115,14 +117,14 @@ void EPollPoller::update(int operation, Channel *channel) {
     bzero(&event, sizeof(event));
 
     event.events = channel->events();
-    // event.data.fd = fd; //!TODO: 应该不能一起使用吧
-    event.data.ptr = channel;  // 注意这里 ptr 是 void* 类型，之间通常使用的是 fd
+    event.data.fd = fd;
+    event.data.ptr = channel;  // event.data 是联合体，注意这里 ptr 是 void* 类型，之间通常使用的是 fd
 
     if (::epoll_ctl(epollfd_, operation, fd, &event) < 0) {
         if (operation == EPOLL_CTL_DEL) {
             LOG_ERROR("epoll_ctl del error: %d \n", errno);
         } else {
-            LOG_FATAL("epoll_ctl add/mod error: %d \n", errno);
+            LOG_FATAL("epoll_ctl add/mod error: %d \n", errno); // add/mod 失败是不能接受的
         }
     }
 }

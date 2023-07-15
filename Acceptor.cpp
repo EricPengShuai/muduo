@@ -26,7 +26,7 @@ Acceptor::Acceptor(EventLoop *loop, const InetAddress &listenAddr, bool reusepor
     acceptSocket_.setReusePort(reuseport);
     acceptSocket_.bindAddress(listenAddr);  // bind
 
-    //!NOTE: TcpServer::start() Acceptor.listen 有新用户连接，要执行一个回调
+    //!NOTE: TcpServer::start() 中 Acceptor.listen 有新用户连接，要执行一个回调
     // baseLoop => acceptChannel_(listenfd) =>
     acceptChannel_.setReadCallback(std::bind(&Acceptor::handleRead, this));
 }
@@ -53,7 +53,7 @@ void Acceptor::handleRead() {
             ::close(connfd);
         }
     } else {
-        LOG_FATAL("%s:%s:%d accept error: %d \n", __FILE__, __FUNCTION__, __LINE__, errno);
+        LOG_ERROR("%s:%s:%d accept error: %d \n", __FILE__, __FUNCTION__, __LINE__, errno);
         if (errno == EMFILE) {
             LOG_ERROR("%s:%s:%d sockfd reached limit! \n", __FILE__, __FUNCTION__, __LINE__);
         }

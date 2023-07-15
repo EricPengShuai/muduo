@@ -30,30 +30,34 @@ class Channel : noncopyable {
     void setCloseCallback(EventCallback cb) { closeCallback_ = std::move(cb); }
     void setErrorCallback(EventCallback cb) { errorCallback_ = std::move(cb); }
 
-    // 防止当 channel 被手动 remove 掉，channel 还在执行回调操作
+    //!NOTE: 多线程中防止当 channel 被手动 remove 掉，channel 还在执行回调操作
     void tie(const std::shared_ptr<void> &);
 
     int fd() const { return fd_; }
     int events() const { return events_; }
     void set_revents(int revt) { revents_ = revt; }
 
-    // 设置 fd 相应的事件状态
+    // 设置 channel.fd 读事件
     void enableReading() {
         events_ |= kReadEvent;
         update();
     }
+    // 消除 channel.fd 读事件
     void disableReading() {
         events_ &= ~kReadEvent;
         update();
     }
+    // 设置 channel.fd 写事件
     void enableWriting() {
         events_ |= kWriteEvent;
         update();
     }
+    // 消除 channel.fd 写事件
     void disableWriting() {
         events_ &= ~kWriteEvent;
         update();
     }
+    // 清空 channel.fd 所有感兴趣的事件
     void disableAll() {
         events_ = kNoneEvent;
         update();
@@ -63,7 +67,8 @@ class Channel : noncopyable {
     bool isNoneEvent() const { return events_ == kNoneEvent; }
     bool isWriting() const { return events_ & kWriteEvent; }
     bool isReading() const { return events_ & kReadEvent; }
-
+  
+    // 返回 channel 状态
     int index() { return index_; }
     void set_index(int idx) { index_ = idx; }
 
@@ -86,7 +91,7 @@ class Channel : noncopyable {
     int events_;    // 注册 fd 感兴趣的事件
     int revents_;   // poller 返回的具体发生的事件
 
-    int index_;  // used by Poller
+    int index_;  // channel 状态，被 Poller 调用
 
     std::weak_ptr<void> tie_;
     bool tied_;

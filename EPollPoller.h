@@ -23,7 +23,7 @@ class EPollPoller : public Poller {
   private:
     static const int kInitEventListSize = 16;
 
-    // 填写活跃的链接
+    // 填写活跃的连接
     void fillActiveChannels(int numEvents, ChannelList *activeChannels) const;
 
     // 更新 channel 通道

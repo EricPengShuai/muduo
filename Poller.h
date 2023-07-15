@@ -26,7 +26,7 @@ class Poller : noncopyable {
     bool hasChannel(Channel *channel) const;
 
     // EventLoop 可以通过该接口获取默认的 IO 复用的具体实现
-    // 这里并不需要在 Poller.cpp 中实现
+    //!NOTE: 这里最好不要在 Poller.cpp 中实现，因为这个需要 include EPollPoller，基类包含派生类头文件不太好
     static Poller *newDefaultPoller(EventLoop *loop);
 
   protected:

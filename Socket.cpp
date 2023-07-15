@@ -41,27 +41,31 @@ int Socket::accept(InetAddress *peeraddr) {
 }
 
 // 关闭写端
-void Socket::shutdwonWrite() {
+void Socket::shutdownWrite() {
     if (::shutdown(sockfd_, SHUT_WR) < 0) {
         LOG_ERROR("shutdownWrite error");
     }
 }
 
+// Enable/disable TCP_NODELAY (Nagle's algorithm)
 void Socket::setTcpNoDelay(bool on) {
     int optval = on ? 1 : 0;
     ::setsockopt(sockfd_, IPPROTO_TCP, TCP_NODELAY, &optval, sizeof(optval));
 }
 
+// Enable/disable SO_REUSEADDR
 void Socket::setReuseAddr(bool on) {
     int optval = on ? 1 : 0;
     ::setsockopt(sockfd_, SOL_SOCKET, SO_REUSEADDR, &optval, sizeof(optval));
 }
 
+// Enable/disable SO_REUSEPORT
 void Socket::setReusePort(bool on) {
     int optval = on ? 1 : 0;
     ::setsockopt(sockfd_, SOL_SOCKET, SO_REUSEPORT, &optval, sizeof(optval));
 }
 
+// Enable/disable SO_KEEPALIVE
 void Socket::setKeepAlive(bool on) {
     int optval = on ? 1 : 0;
     ::setsockopt(sockfd_, SOL_SOCKET, SO_KEEPALIVE, &optval, sizeof(optval));

@@ -6,11 +6,17 @@
 #include <sys/epoll.h>
 
 const int Channel::kNoneEvent = 0;
-const int Channel::kReadEvent = EPOLLIN | EPOLLPRI;
+const int Channel::kReadEvent = EPOLLIN | EPOLLPRI; // EPOLLPRI receive these urgent data
 const int Channel::kWriteEvent = EPOLLOUT;
 
 // 指定 loop 和 fd 初始化 channel
-Channel::Channel(EventLoop *loop, int fd) : loop_(loop), fd_(fd), events_(0), revents_(0), index_(-1), tied_(false) {}
+Channel::Channel(EventLoop *loop, int fd) 
+    : loop_(loop)
+    , fd_(fd)
+    , events_(0)
+    , revents_(0)
+    , index_(-1)
+    , tied_(false) {}
 
 Channel::~Channel() {
     // if (loop_->isInLoopThread()) {
@@ -18,7 +24,7 @@ Channel::~Channel() {
     // }
 }
 
-//!TODO: 什么时候调用
+//!NOTE: 强智能指针 --> 弱智能指针
 void Channel::tie(const std::shared_ptr<void> &obj) {
     tie_ = obj;
     tied_ = true;
@@ -36,7 +42,7 @@ void Channel::update() {
 // 在 channel 所属的 EventLoop 中把当前的 channel 删除掉
 void Channel::remove() { loop_->removeChannel(this); }
 
-// fd 得到
+// fd 得到 poller 通知之后处理事件
 void Channel::handleEvent(Timestamp receiveTime) {
     if (tied_) {
         //!NOTE: 这里将 weak_ptr 提升为 shared_ptr 是为了防止 TcpConnection 被释放
@@ -67,14 +73,14 @@ void Channel::handleEventWithGuard(Timestamp receiveTime) {
         }
     }
 
-    // 读
+    // 读事件
     if (revents_ & (EPOLLIN | EPOLLPRI)) {
         if (readCallback_) {
             readCallback_(receiveTime);
         }
     }
 
-    // 写
+    // 写事件
     if (revents_ & EPOLLOUT) {
         if (writeCallback_) {
             writeCallback_();

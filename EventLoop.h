@@ -31,7 +31,7 @@ class EventLoop : noncopyable {
 
     void wakeup();  // 用来唤醒 loop 所在的线程
 
-    // EventLoop 调用 Poller 方法
+    // EventLoop 调用 Poller 方法，实际上是 channel 想要调用
     void updateChannel(Channel *channel);
     void removeChannel(Channel *channel);
     void hasChannel(Channel *channel);

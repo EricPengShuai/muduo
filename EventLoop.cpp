@@ -10,7 +10,7 @@
 // 防止一个线程创建多个 EventLoop，thread_local 机制
 __thread EventLoop *t_loopInThisThread = nullptr;
 
-// 定义默认的 Poller IO 复用接口的超时时间
+// 定义默认的 Poller IO 复用接口的超时时间 10s
 const int kPollTimeMs = 10000;
 
 // 创建 wakeupfd，用来 notify 唤醒 subReactor 处理新来的 channel
@@ -62,7 +62,9 @@ void EventLoop::loop() {
     LOG_INFO("EventLoop %p start looping \n", this);
 
     while (!quit_) {
+        // 首先清空 channels
         activateChannels_.clear();
+
         // 监听两类 fd，一种是 client 的 fd，一种是 wakeupfd
         pollReturnTime_ = poller_->poll(kPollTimeMs, &activateChannels_);
 
@@ -74,8 +76,8 @@ void EventLoop::loop() {
         // 执行当前 EventLoop 事件循环需要处理的回调操作
         /**
          * IO 线程 mainLoop accept fd <==  channel subloop
-         * mainLoop 事先注册一个回调 cb（需要 subloop 来执行） wakeup subloop 之后执行下面的方法，执行之前 mainLoop
-         * 注册的 cb
+         * mainLoop 事先注册一个回调 cb（需要 subloop 来执行） wakeup subloop 之后执行下面的方法，
+         * 执行之前 mainLoop 注册的 cb
          */
         doPendingFunctors();
     }
@@ -120,7 +122,7 @@ void EventLoop::queueInLoop(Functor cb) {
     }
 
     // 唤醒相应的，需要执行上面回调操作的 loop 的线程了
-    //!NOTE: callingPendingFunctors_ 当前 loop 正在执行回调，但是 loop 又有了新的回调
+    //!NOTE: callingPendingFunctors_ 当前 loop 正在执行回调，但是 loop 又有了新的回调，因此还需要唤醒 poller 以便再次执行
     if (!isInLoopThread() || callingPendingFunctors_) {
         wakeup();  // 唤醒 loop 就在线程
     }
@@ -135,11 +137,13 @@ void EventLoop::wakeup() {
     }
 }
 
-// EventLoop 调用 Poller 方法，实际上是 channel 想要调用
+// 调用 poller->updateChannel
 void EventLoop::updateChannel(Channel *channel) { poller_->updateChannel(channel); }
 
+// 调用 poller->removeChannel
 void EventLoop::removeChannel(Channel *channel) { poller_->removeChannel(channel); }
 
+// 调用 poller->hasChannel
 void EventLoop::hasChannel(Channel *channel) { poller_->hasChannel(channel); }
 
 void EventLoop::handleRead() {

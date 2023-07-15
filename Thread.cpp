@@ -17,6 +17,7 @@ Thread::~Thread() {
     }
 }
 
+// 开启线程，一个 Thread 对象记录的就是一个新线程的详细信息
 void Thread::start() {
     started_ = true;
 
@@ -30,7 +31,7 @@ void Thread::start() {
         func_();  // 开启一个新线程，专门执行该线程函数
     }));
 
-    // 这里必须等待获取上面新创建的线程的 tid
+    //!NOTE: 这里必须等待获取上面新创建的线程的 tid
     sem_wait(&sem);
 }
 
@@ -41,7 +42,7 @@ void Thread::join() {
 
 void Thread::setDefaultName() {
     //!NOTE: 这是一个原子变量，重载了 ++
-    int num = ++numCreated_;
+    int num = ++ numCreated_;
     if (name_.empty()) {
         char buf[32] = {0};
         snprintf(buf, sizeof(buf), "Thread%d", num);
