@@ -64,7 +64,7 @@ class Channel : noncopyable {
     bool isWriting() const { return events_ & kWriteEvent; }
     bool isReading() const { return events_ & kReadEvent; }
 
-    bool index() { return index_; }
+    int index() { return index_; }
     void set_index(int idx) { index_ = idx; }
 
     // one loop per thread

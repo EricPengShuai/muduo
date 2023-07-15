@@ -18,7 +18,7 @@ Channel::~Channel() {
     // }
 }
 
-// todo: 什么时候调用
+//!TODO: 什么时候调用
 void Channel::tie(const std::shared_ptr<void> &obj) {
     tie_ = obj;
     tied_ = true;
@@ -39,6 +39,7 @@ void Channel::remove() { loop_->removeChannel(this); }
 // fd 得到
 void Channel::handleEvent(Timestamp receiveTime) {
     if (tied_) {
+        //!NOTE: 这里将 weak_ptr 提升为 shared_ptr 是为了防止 TcpConnection 被释放
         std::shared_ptr<void> guard = tie_.lock();
         if (guard) {
             handleEventWithGuard(receiveTime);
