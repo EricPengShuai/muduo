@@ -152,6 +152,7 @@ void TcpConnection::connectDestroyed() {
     channel_->remove();  // 把 channel 从 poller 中删除掉
 }
 
+// 从 connfd 读取数据到 inputBuffer_ 并执行上层设置的 messageCallback_
 void TcpConnection::handleRead(Timestamp receiveTime) {
     int savedErrno = 0;
     ssize_t n = inputBuffer_.readFd(channel_->fd(), &savedErrno);
@@ -168,6 +169,7 @@ void TcpConnection::handleRead(Timestamp receiveTime) {
     }
 }
 
+// 从 connfd 写数据到 outputBuffer_ 并执行上层设置的 writeCompleteCallback_
 void TcpConnection::handleWrite() {
     if (channel_->isWriting()) {
         int savedErrno = 0;
@@ -201,7 +203,7 @@ void TcpConnection::handleClose() {
     setState(kDisconnected);
     channel_->disableAll();
 
-    //!NOTE: 这里再次调用 connectionCallback_ 处理断开事件的 callback
+    //!NOTE: 这里再次调用 connectionCallback_ 处理断开事件的 callback，实际上是给用户一个提示 disConnected，没有处理
     TcpConnectionPtr connPtr(shared_from_this());
     connectionCallback_(connPtr);
     closeCallback_(connPtr);  // 关闭连接的回调 => 执行的是 TcpServer::removeConnection 回调方法

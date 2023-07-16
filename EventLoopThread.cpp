@@ -1,6 +1,5 @@
 #include "EventLoopThread.h"
 
-
 EventLoopThread::EventLoopThread(const ThreadInitCallback &cb, const std::string &name)
     : loop_(nullptr)
     , exiting_(false)
