@@ -17,7 +17,7 @@ EPollPoller::EPollPoller(EventLoop *loop)
     , events_(kInitEventListSize)               // vector<epoll_event>
 {
     if (epollfd_ < 0) {
-        LOG_FATAL("epoll_create error: %d \n", errno);
+        LOG_FATAL("EPollPoller::EPollPoller - epoll_create1 error: %d", errno);
     }
 }
 
@@ -26,25 +26,25 @@ EPollPoller::~EPollPoller() { ::close(epollfd_); }
 // 实际就是 epoll_wait 等待感兴趣的事件，并且通过 fillActiveChannels 告知 EventLoop 活跃的 channels
 Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels) {
     //!TODO: poll 调用时非常频繁的，使用 LOG_DEBUG 更合适
-    LOG_INFO("func = %s => fd total count: %lu \n", __FUNCTION__, activeChannels->size());
+    LOG_DEBUG("EPollPoller::poll - fd total count: %lu", activeChannels->size());
 
     int numEvents = ::epoll_wait(epollfd_, &(*events_.begin()), static_cast<int>(events_.size()), timeoutMs);
     int savedErrno = errno;  // 防止多线程改变 errno
     Timestamp now(Timestamp::now());
 
     if (numEvents > 0) {  // 监听到事件
-        LOG_INFO("%d events happened \n", numEvents);
+        LOG_INFO("EPollPoller::poll - %d events happened", numEvents);
         fillActiveChannels(numEvents, activeChannels);
 
         if (numEvents == events_.size()) {  // vector EventList 所有，需要扩容
             events_.resize(events_.size() * 2);
         }
     } else if (numEvents == 0) {  // 超时
-        LOG_DEBUG("%s timeout! \n", __FUNCTION__);
+        LOG_DEBUG("EPollPoller::poll - %d timeout!", timeoutMs);
     } else {  // 错误
         if (savedErrno != EINTR) { // 外部中断还需要继续处理
             errno = savedErrno;
-            LOG_ERROR("EPollPoller::poll() err! errno=%d", errno);
+            LOG_ERROR("EPollPoller::poll err! errno=%d", errno);
         }
     }
     return now;
@@ -71,8 +71,7 @@ void EPollPoller::fillActiveChannels(int numEvents, ChannelList *activeChannels)
  */
 void EPollPoller::updateChannel(Channel *channel) {
     const int index = channel->index();
-    LOG_INFO("func = %s => fd = %d, events = %d, index = %d \n", 
-        __FUNCTION__, channel->fd(), channel->events(), index);
+    LOG_INFO("EPollPoller::updateChannel - fd = %d, events = %d, index = %d", channel->fd(), channel->events(), index);
 
     // 理解 kNew, kAdded, kDeleted 之间的逻辑
     if (index == kNew || index == kDeleted) {
@@ -99,7 +98,7 @@ void EPollPoller::removeChannel(Channel *channel) {
     int fd = channel->fd();
     channels_.erase(fd);
 
-    LOG_INFO("func = %s:%s => fd = %d\n", __FILE__, __FUNCTION__, fd);
+    LOG_INFO("EPollPoller::removeChannel - fd = %d", fd);
 
     int index = channel->index(); // 获取 channel 的状态
     if (index == kAdded) {
@@ -122,9 +121,9 @@ void EPollPoller::update(int operation, Channel *channel) {
 
     if (::epoll_ctl(epollfd_, operation, fd, &event) < 0) {
         if (operation == EPOLL_CTL_DEL) {
-            LOG_ERROR("epoll_ctl del error: %d \n", errno);
+            LOG_ERROR("EPollPoller::update - epoll_ctl del error: %d", errno);
         } else {
-            LOG_FATAL("epoll_ctl add/mod error: %d \n", errno); // add/mod 失败是不能接受的
+            LOG_FATAL("EPollPoller::update - epoll_ctl add/mod error: %d", errno); // add/mod 失败是不能接受的
         }
     }
 }

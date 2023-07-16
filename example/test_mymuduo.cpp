@@ -33,9 +33,9 @@ private:
     void onConnection(const TcpConnectionPtr &conn)
     {
         if (conn->connected()) {
-            LOG_INFO("Connection UP: %s", conn->peerAddress().toIpPort().c_str());
+            LOG_INFO("EchoServer::onConnection - Connection UP: %s", conn->peerAddress().toIpPort().c_str());
         } else {
-            LOG_INFO("Connection DOWN: %s", conn->peerAddress().toIpPort().c_str());
+            LOG_INFO("EchoServer::onConnection - Connection DOWN: %s", conn->peerAddress().toIpPort().c_str());
         }
     }
 
@@ -44,7 +44,7 @@ private:
     {
         std::string msg = buf->retrieveAllAsString();
         conn->send(msg);
-        conn->shutdwon(); // 关闭写端 EPOLLHUP => closeCallback_
+        // conn->shutdwon(); // 关闭写端 EPOLLHUP => closeCallback_
     }
 
     EventLoop *loop_;

@@ -28,5 +28,5 @@ void Logger::log(std::string msg) {
         default:
             break;
     }
-    std::cout << Timestamp::now().toString() << ": " << msg;
+    std::cout << Timestamp::now().toString() << ": " << msg << std::endl;
 }

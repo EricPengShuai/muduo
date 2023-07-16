@@ -17,7 +17,7 @@ const int kPollTimeMs = 10000;
 int createEventfd() {
     int evtfd = ::eventfd(0, EFD_NONBLOCK | EFD_CLOEXEC);
     if (evtfd < 0) {
-        LOG_FATAL("eventfd error: %d \n", errno);
+        LOG_FATAL("EventLoop createEventfd() - eventfd error: %d", errno);
     }
     return evtfd;
 }
@@ -32,9 +32,9 @@ EventLoop::EventLoop()
     , wakeupChannel_(new Channel(this, wakeupFd_))
 // , currentActivateChannels_(nullptr)
 {
-    LOG_DEBUG("EventLoop created %p in thread %d \n", this, threadId_);
+    LOG_DEBUG("EventLoop::EventLoop() - created %p in thread %d", this, threadId_);
     if (t_loopInThisThread) {
-        LOG_FATAL("Another EventLoop %p exists in this thread %d \n", t_loopInThisThread, threadId_);
+        LOG_FATAL("EventLoop::EventLoop() - another EventLoop %p exists in this thread %d", t_loopInThisThread, threadId_);
     } else {
         t_loopInThisThread = this;
     }
@@ -59,7 +59,7 @@ void EventLoop::loop() {
     looping_ = true;
     quit_ = false;
 
-    LOG_INFO("EventLoop %p start looping \n", this);
+    LOG_INFO("EventLoop::loop() - %p start looping", this);
 
     while (!quit_) {
         // 首先清空 channels
@@ -82,7 +82,7 @@ void EventLoop::loop() {
         doPendingFunctors();
     }
 
-    LOG_INFO("EventLoop %p stop looping. \n", this);
+    LOG_INFO("EventLoop::loop() - %p stop looping.", this);
     looping_ = false;
 }
 
@@ -133,7 +133,7 @@ void EventLoop::wakeup() {
     uint64_t one = 1;
     ssize_t n = write(wakeupFd_, &one, sizeof(one));
     if (n != sizeof(one)) {
-        LOG_ERROR("EventLoop::wakeup() writes %lu bytes instead of 8 \n", n);
+        LOG_ERROR("EventLoop::wakeup() - writes %lu bytes instead of 8", n);
     }
 }
 
@@ -150,7 +150,7 @@ void EventLoop::handleRead() {
     uint64_t one = 1;
     ssize_t n = read(wakeupFd_, &one, sizeof one);
     if (n != sizeof(one)) {
-        LOG_ERROR("EventLoop::handleRead() reads %ld bytes instead of 8", n);
+        LOG_ERROR("EventLoop::handleRead() - reads %ld bytes instead of 8", n);
     }
 }
 
