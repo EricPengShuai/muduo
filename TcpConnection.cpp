@@ -33,6 +33,7 @@ TcpConnection::TcpConnection(EventLoop *loop,
     , localAddr_(localAddr)
     , peerAddr_(peerAddr)
     , highWaterMark_(64 * 1024 * 1024) {
+    //!NOTE: 和 acceptChannel 区分开，那个是 listenfd 只关心 setReadCallback，这个 channel 是 connfd 需要关心读写关闭以及错误
     // 下面给 channel_ 设置相应的回调函数，poller 给 channel 通知感兴趣的事件发生了，channel 会回调相应的操作函数
     channel_->setReadCallback(std::bind(&TcpConnection::handleRead, this, std::placeholders::_1));
     channel_->setWriteCallback(std::bind(&TcpConnection::handleWrite, this));
@@ -58,104 +59,6 @@ void TcpConnection::send(std::string &buf) {
     }
 }
 
-// 关闭连接
-void TcpConnection::shutdwon() {
-    if (state_ == kConnected) {
-        setState(kDisconnecting);
-        loop_->runInLoop(std::bind(&TcpConnection::shutdownInLoop, this));
-    }
-}
-
-// 连接建立，当 TcpServer 接受到一个新连接时被调用
-void TcpConnection::connectEstablished() {
-    setState(kConnected);
-    //!TODO: 理解一下
-    channel_->tie(shared_from_this());
-    channel_->enableReading();  // 向 poller 注册 channel 的 epollin 事件
-
-    // 新连接建立，执行回调
-    connectionCallback_(shared_from_this());
-}
-
-// 连接销毁，当 TcpServer 移除时连接时被调用
-void TcpConnection::connectDestroyed() {
-    if (state_ == kConnected) {
-        setState(kDisconnected);
-        channel_->disableAll();  // 把 channel 所有感兴趣的事件，从 poller 中 del 掉
-        connectionCallback_(shared_from_this());
-    }
-
-    channel_->remove();  // 把 channel 从 poller 中删除掉
-}
-
-void TcpConnection::handleRead(Timestamp receiveTime) {
-    int savedErrno = 0;
-    ssize_t n = inputBuffer_.readFd(channel_->fd(), &savedErrno);
-    if (n > 0) {
-        // 已经建立连接的用户，有可读事件发生了，调用用户传入的回调操作 onMessage
-        //!NOTE: shared_from_this() 返回当前对象的 shared_ptr
-        messageCallback_(shared_from_this(), &inputBuffer_, receiveTime);
-    } else if (n == 0) {
-        handleClose();
-    } else {
-        errno = savedErrno;
-        LOG_ERROR("TcpConnection::handleRead");
-        handleError();
-    }
-}
-
-void TcpConnection::handleWrite() {
-    if (channel_->isWriting()) {
-        int savedErrno = 0;
-        ssize_t n = outputBuffer_.writeFd(channel_->fd(), &savedErrno);
-        if (n > 0) {
-            outputBuffer_.retrieve(n);
-            if (outputBuffer_.readableBytes() == 0) {
-                channel_->disableWriting();  // 写完了变成不可写
-
-                //!NOTE: 唤醒 loop_ 对应的 thread 线程，执行回调，实际上就是本线程调用的
-                // 可以直接回调，类似于 handleRead 中 messageCallback_
-                if (writeCompleteCallback_) {
-                    loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
-                }
-
-                if (state_ == kDisconnecting) {
-                    shutdownInLoop();
-                }
-            }
-        } else {
-            LOG_ERROR("TcpConnection::handleWrite");
-        }
-    } else {
-        LOG_ERROR("TcpConnection::handleWrite fd=%d is down, no more writing \n", channel_->fd());
-    }
-}
-
-// poller => channel::closeCallback => TcpConnection::handleClose
-void TcpConnection::handleClose() {
-    LOG_INFO("TcpConnection::handleClose fd=%d state=%d \n", channel_->fd(), (int)state_);
-    setState(kDisconnected);
-    channel_->disableAll();
-
-    //!NOTE: 这里再次调用 connectionCallback_ 处理断开事件的 callback
-    TcpConnectionPtr connPtr(shared_from_this());
-    connectionCallback_(connPtr);
-    closeCallback_(connPtr);  // 关闭连接的回调 => TcpServer::removeConnection
-}
-
-void TcpConnection::handleError() {
-    int optval;
-    socklen_t optlen = sizeof(optval);
-    int err = 0;
-    if (::getsockopt(channel_->fd(), SOL_SOCKET, SO_ERROR, &optval, &optlen) < 0) {
-        err = errno;
-    } else {
-        err = optval;
-    }
-
-    LOG_ERROR("TcpConnection::handleError name:%s - SO_ERROR:%d \n", name_.c_str(), err);
-}
-
 /**
  * 发送数据，应用写的快，而内核发送数据慢，需要把发送数据写入缓冲区，而且设置了水位回调
  */
@@ -166,7 +69,7 @@ void TcpConnection::sendInLoop(const void *data, size_t len) {
 
     // 之前调用过该 connection 的 shutdown，不能再进行发送了
     if (state_ == kDisconnected) {
-        LOG_ERROR("disconnected, give up writing!");
+        LOG_ERROR("disconnected, give up writing!\n");
         return;
     }
 
@@ -182,7 +85,7 @@ void TcpConnection::sendInLoop(const void *data, size_t len) {
         } else {  // nwrote < 0
             nwrote = 0;
             if (errno != EWOULDBLOCK) {
-                LOG_ERROR("TcpConnection::sendInLoop");
+                LOG_ERROR("TcpConnection::sendInLoop, errno = %d\n", errno);
                 if (errno == EPIPE || errno == ECONNRESET)  // SIGPIPE | RESET
                 {
                     faultError = true;
@@ -211,8 +114,108 @@ void TcpConnection::sendInLoop(const void *data, size_t len) {
     }
 }
 
-void TcpConnection::shutdownInLoop() {
-    if (!channel_->isWriting()) {
-        socket_->shutdownWrite();
+// 关闭连接
+void TcpConnection::shutdown() {
+    if (state_ == kConnected) {
+        setState(kDisconnecting);
+        loop_->runInLoop(std::bind(&TcpConnection::shutdownInLoop, this));
     }
+}
+
+//!NOTE: shutdown 过程有 channel_ 还没有写完，直到 readableBytes() == 0，和 handleWrite() 关联
+void TcpConnection::shutdownInLoop() {
+    if (!channel_->isWriting()) // 说明 outputBuffer 中的数据已经全部发送完成
+    { 
+        socket_->shutdownWrite(); // 关闭写端，EPOLLHUP 自动注册
+    }
+}
+
+// 连接建立，当 TcpServer 接受到一个新连接时被调用
+void TcpConnection::connectEstablished() {
+    setState(kConnected);
+    //!NOTE: 防止上层将 TcpConnection 给 remove 掉而 callback 执行出错
+    channel_->tie(shared_from_this());
+    channel_->enableReading();  // 向 poller 注册 channel 的 epollin 事件
+
+    // 新连接建立，执行回调
+    connectionCallback_(shared_from_this());
+}
+
+// 连接销毁，当 TcpServer 移除时连接时被调用
+void TcpConnection::connectDestroyed() {
+    if (state_ == kConnected) {
+        setState(kDisconnected);
+        channel_->disableAll();  // 把 channel 所有感兴趣的事件，从 poller 中 del 掉
+        connectionCallback_(shared_from_this());
+    }
+
+    channel_->remove();  // 把 channel 从 poller 中删除掉
+}
+
+void TcpConnection::handleRead(Timestamp receiveTime) {
+    int savedErrno = 0;
+    ssize_t n = inputBuffer_.readFd(channel_->fd(), &savedErrno);
+    if (n > 0) {
+        // 已经建立连接的用户，有可读事件发生了，调用用户传入的回调操作 onMessage
+        //!NOTE: shared_from_this() 返回当前对象的 shared_ptr
+        messageCallback_(shared_from_this(), &inputBuffer_, receiveTime);
+    } else if (n == 0) { // 断开连接
+        handleClose();
+    } else {
+        errno = savedErrno;
+        LOG_ERROR("TcpConnection::handleRead");
+        handleError();
+    }
+}
+
+void TcpConnection::handleWrite() {
+    if (channel_->isWriting()) {
+        int savedErrno = 0;
+        ssize_t n = outputBuffer_.writeFd(channel_->fd(), &savedErrno);
+        if (n > 0) {
+            outputBuffer_.retrieve(n);
+            if (outputBuffer_.readableBytes() == 0) {
+                channel_->disableWriting();  // 写完了变成不可写
+
+                //!NOTE: 唤醒 loop_ 对应的 thread 线程，执行回调，实际上就是本线程调用的
+                // 可以直接回调，类似于 handleRead 中 messageCallback_
+                if (writeCompleteCallback_) {
+                    loop_->queueInLoop(std::bind(writeCompleteCallback_, shared_from_this()));
+                }
+
+                if (state_ == kDisconnecting) {
+                    shutdownInLoop();
+                }
+            }
+        } else {
+            LOG_ERROR("TcpConnection::handleWrite, errno = %d", errno);
+        }
+    } else {
+        LOG_ERROR("TcpConnection::handleWrite fd=%d is down, no more writing \n", channel_->fd());
+    }
+}
+
+// poller => channel::closeCallback => TcpConnection::handleClose
+void TcpConnection::handleClose() {
+    LOG_INFO("TcpConnection::handleClose fd=%d state=%d \n", channel_->fd(), (int)state_);
+    setState(kDisconnected);
+    channel_->disableAll();
+
+    //!NOTE: 这里再次调用 connectionCallback_ 处理断开事件的 callback
+    TcpConnectionPtr connPtr(shared_from_this());
+    connectionCallback_(connPtr);
+    closeCallback_(connPtr);  // 关闭连接的回调 => 执行的是 TcpServer::removeConnection 回调方法
+}
+
+void TcpConnection::handleError() {
+    int optval;
+    socklen_t optlen = sizeof(optval);
+    int err = 0;
+    if (::getsockopt(channel_->fd(), SOL_SOCKET, SO_ERROR, &optval, &optlen) < 0) {
+        err = errno;
+    } else {
+        err = optval;
+    }
+
+    LOG_ERROR("TcpConnection::handleError name:%s - SO_ERROR:%d \n", name_.c_str(), err);
 }

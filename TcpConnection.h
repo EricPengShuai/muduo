@@ -36,7 +36,7 @@ class TcpConnection : noncopyable, public std::enable_shared_from_this<TcpConnec
 
     void send(std::string &buf);  // 发送数据
 
-    void shutdwon();  // 关闭连接
+    void shutdown();  // 关闭连接
 
     void setConnectionCallback(const ConnectionCallback &cb) { connectionCallback_ = cb; }
 
@@ -79,6 +79,7 @@ class TcpConnection : noncopyable, public std::enable_shared_from_this<TcpConnec
     const InetAddress localAddr_;
     const InetAddress peerAddr_;
 
+    // 这些都是上层 TcpServer 设置的，TcpServer 中有些是用户设置的
     ConnectionCallback connectionCallback_;        // 有新连接时的回调
     MessageCallback messageCallback_;              // 有读写消息时的回调
     WriteCompleteCallback writeCompleteCallback_;  // 消息发送完成之后的回调

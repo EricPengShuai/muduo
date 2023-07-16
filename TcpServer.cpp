@@ -33,6 +33,7 @@ TcpServer::~TcpServer() {
         TcpConnectionPtr conn(item.second);
         item.second.reset();
 
+        // 销毁链接
         conn->getLoop()->runInLoop(std::bind(&TcpConnection::connectDestroyed, conn));
     }
 }
@@ -49,7 +50,7 @@ void TcpServer::start() {
     }
 }
 
-// 有一个新的客户端的连接，acceptor 会执行这个回调
+// 有一个新的客户端的连接，acceptor 会执行这个回调, sockfd 就是 connfd
 void TcpServer::newConnection(int sockfd, const InetAddress &peerAddr) {
     // 轮询算法，选择一个 subLoop 来管理 channel
     EventLoop *ioLoop = threadPool_->getNextLoop();
