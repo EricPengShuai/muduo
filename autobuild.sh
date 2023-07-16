@@ -10,8 +10,16 @@ fi
 
 rm -rf `pwd`/build/*
 
-cd `pwd`/build && 
+# 进入 build 目录
+cd `pwd`/build
+    
+if [ "$1" = "DEBUG" ]; then
+    echo "DEBUG mode"
+    cmake -DCMAKE_CXX_FLAGS="-DMUDEBUG" .. && make -j4
+else
+    echo "INFO mode"
     cmake .. && make -j4
+fi
 
 # 回到顶层根目录
 cd ..
