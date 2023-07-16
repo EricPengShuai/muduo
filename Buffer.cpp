@@ -4,7 +4,11 @@
 #include <sys/uio.h>
 #include <unistd.h>
 
-//!NOTE: 从 fd 读数据，相当于读到 buffer 的写缓冲区
+/**
+ * !NOTE: 从 fd 读数据，相当于读到 buffer 的写缓冲区
+ * 从 fd 上读数据，Poller 工作在 LT 模式
+ * Buffer 缓冲区是有大小的，但是从 fd 上读取数据的时候却不知道 tcp 数据最终的大小
+ */
 ssize_t Buffer::readFd(int fd, int *saveErrno) {
     char extrabuf[65536] = {0};  // 栈上分配的内存空间 64K
 

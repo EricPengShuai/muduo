@@ -24,7 +24,7 @@ Channel::~Channel() {
     // }
 }
 
-//!NOTE: 强智能指针 --> 弱智能指针
+//!NOTE: 一个 TcpConnecetion 新连接创建的时候就会调用，强智能指针 TcpConnecetionPtr --> 弱智能指针
 void Channel::tie(const std::shared_ptr<void> &obj) {
     tie_ = obj;
     tied_ = true;

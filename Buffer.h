@@ -58,7 +58,7 @@ class Buffer {
 
     std::string retrieveAsString(size_t len) {
         std::string res(peek(), len);
-        retrieve(len);  // 复位缓冲区
+        retrieve(len);  // 上一句把缓冲区可读的数据已经读取出来，这里需要复位缓冲区
         return res;
     }
 
@@ -98,7 +98,7 @@ class Buffer {
             buffer_.resize(writerIndex_ + len);
         } else {
             size_t readable = readableBytes();
-            // 把已读的部分摞到前面
+            // 把已读的部分挪至前面
             std::copy(begin() + readerIndex_, begin() + writerIndex_, begin() + kCheapPrepend);
 
             // 更新 readIndex 和 writeIndex
