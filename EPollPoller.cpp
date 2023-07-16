@@ -40,7 +40,7 @@ Timestamp EPollPoller::poll(int timeoutMs, ChannelList *activeChannels) {
             events_.resize(events_.size() * 2);
         }
     } else if (numEvents == 0) {  // 超时
-        LOG_DEBUG("EPollPoller::poll - %d timeout!", timeoutMs);
+        LOG_DEBUG("EPollPoller::poll - %dms timeout!", timeoutMs);
     } else {  // 错误
         if (savedErrno != EINTR) { // 外部中断还需要继续处理
             errno = savedErrno;

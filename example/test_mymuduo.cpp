@@ -44,7 +44,7 @@ private:
     {
         std::string msg = buf->retrieveAllAsString();
         conn->send(msg);
-        // conn->shutdwon(); // 关闭写端 EPOLLHUP => closeCallback_
+        conn->shutdown(); // 关闭写端 EPOLLHUP => closeCallback_
     }
 
     EventLoop *loop_;
