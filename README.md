@@ -107,16 +107,28 @@ sudo ./autobuild.sh DEBUG
 ### 5、亮点
 
 #### eventfd()
-- mainLoop 和 subLoop 之间没有使用同步队列，没有使用生产者消费者模型，而是使用 eventfd() 创建 wakeupFd 作为线程之间的通知唤醒逻辑，效率是很高的
-- Libevent 中使用 socketpair 基于 AF_UNIX 创建双向管道用于线程之间的通信
+EventLoop 中使用了 eventfd 来调用 wakeup()，让 mainloop 唤醒 subloop 的 epoll_wait 阻塞
+> - mainLoop 和 subLoop 之间没有使用同步队列，没有使用生产者消费者模型，而是使用 eventfd() 创建 wakeupFd 作为线程之间的通知唤醒逻辑，效率是很高的
+> - Libevent 中使用 socketpair 基于 AF_UNIX 创建双向管道用于线程之间的通信
 
 #### multiple reators
-- mainReators 和 subReator，实际上是 mainLoop 和 subLoop，包括 Channel 和 Poller
-- EventLoop 就是图中的 Reactor 和 Demultiplex
+1. 采用 Reactor 模型和多线程结合的方式，实现了高并发非阻塞网络库，mainReators 和 subReator，实际上是 mainLoop 和 subLoop，包括 Channel 和 Poller
+2. EventLoop 就是图中的 Reactor 和 Demultiplex
 ![reactor](./images/reactor.png)
 
+#### 效率高
+1. 在 EventLoop 中注册回调 cb 至 pendingFunctors_，并在 doPendingFunctors 中通过 swap() 的方式，快速换出注册的回调，只在 swap() 时加锁，减少代码临界区长度，提升效率。
+> 若不通过 swap() 的方式去处理，而是加锁执行 pendingFunctors 中的回调，然后解锁，会出现什么问题呢？
+> - 临界区过大，锁降低了服务器响应效率 
+> - 若执行的回调中执行queueInLoop需要抢占锁时，会发生死锁）
+
+2. Logger可以设置日志等级，调试代码时可以开启DEBUG打印日志；若启动服务器，由于日志会影响服务器性能，可适当关闭DEBUG相关日志输出
+
 #### C++11
-- 使用 C++11 改写原有 muduo 库，不依赖 boost 库
+1. 使用 C++11 改写原有 muduo 库，不依赖 boost 库
+2. 在 Thread 中通过 C++ Lambda 表达式以及信号量机制保证线程创建时的有序性，只有当线程获取到了其自己的 tid 后，才算启动线程完毕
+3. TcpConnection 继承自 enable_shared_from_this，TcpConnection 对象可以调用 shared_from_this() 方法给其内部回调函数，相当于创建了一个带引用计数的shared_ptr，可参考链接 [link](https://blog.csdn.net/gc348342215/article/details/123215888)，同时通过 tie() 方式解决了 TcpConnection 对象生命周期先于 Channel 结束的情况
+
 
 ### 6、整体流程梳理
 
@@ -124,4 +136,8 @@ sudo ./autobuild.sh DEBUG
 
 ### 7、参考
 
-- 施磊 ————【高级】手写C++ Muduo网络库项目-掌握高性能网络库实现原理
+- 施磊--【高级】手写C++ Muduo网络库项目-掌握高性能网络库实现原理
+- [深入掌握C++智能指针](https://blog.csdn.net/QIANGWEIYUAN/article/details/88562935)
+- [C++智能指针的enable_shared_from_this和shared_from_this机制](https://blog.csdn.net/QIANGWEIYUAN/article/details/88973735)
+- [C++ muduo网络库知识分享01 - Linux平台下muduo网络库源码编译安装](https://blog.csdn.net/QIANGWEIYUAN/article/details/89023980)
+- [C++11 - thread多线程编程，线程互斥和同步通信，死锁问题分析解决](https://blog.csdn.net/QIANGWEIYUAN/article/details/88792621)
