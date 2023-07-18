@@ -12,21 +12,23 @@ Logger &Logger::instance() {
 void Logger::setLogLevel(int level) { logLevel_ = level; }
 
 void Logger::log(std::string msg) {
+    std::string pre = "";
     switch (logLevel_) {
         case INFO:
-            std::cout << "[INFO] ";
+            pre = "[INFO] ";
             break;
         case ERROR:
-            std::cout << "[ERROR] ";
+            pre = "[ERROR] ";
             break;
         case FATAL:
-            std::cout << "[FATAL] ";
+            pre = "[FATAL] ";
             break;
         case DEBUG:
-            std::cout << "[DEBUG] ";
+            pre = "[DEBUG] ";
             break;
         default:
             break;
     }
-    std::cout << Timestamp::now().toString() << ": " << msg << std::endl;
+    //!NOTE: 将日志打印由两次改为一次，避免并发时打印错位
+    std::cout << pre + Timestamp::now().toString() << ": " << msg << std::endl;
 }
