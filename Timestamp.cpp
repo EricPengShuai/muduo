@@ -2,15 +2,16 @@
 
 #include <time.h>
 
-Timestamp::Timestamp() : microSecondsSinceEpoch_(0) {}
+Timestamp::Timestamp() : secondsSinceEpoch_(0) {}
 
-Timestamp::Timestamp(int64_t microSecondsSinceEpoch) : microSecondsSinceEpoch_(microSecondsSinceEpoch) {}
+Timestamp::Timestamp(int64_t microSecondsSinceEpoch) : secondsSinceEpoch_(microSecondsSinceEpoch) {}
 
 Timestamp Timestamp::now() { return Timestamp(time(NULL)); }
 
 std::string Timestamp::toString() const {
     char buf[128] = {0};
-    tm *tm_time = localtime(&microSecondsSinceEpoch_);
+    //!NOTE: localtime 参数是秒数，time(NULL) 返回的也是描述 
+    tm *tm_time = localtime(&secondsSinceEpoch_);
     snprintf(buf,
              128,
              "%4d/%02d/%02d %02d:%02d:%02d",
