@@ -27,7 +27,7 @@
     - poll -> epoll_wait
     - update -> updateChannel -> epoll_ctl
 
-#### EventLoop - Reator
+#### EventLoop - Reactor
 - 管理 channels 和 poller
     - ChannelList activateChannels_
     - unique_ptr poller_
@@ -106,17 +106,32 @@ sudo ./autobuild.sh DEBUG
 
 ### 5、亮点
 
-#### eventfd()
+#### 5.1 eventfd()
 EventLoop 中使用了 eventfd 来调用 wakeup()，让 mainloop 唤醒 subloop 的 epoll_wait 阻塞
 > - mainLoop 和 subLoop 之间没有使用同步队列，没有使用生产者消费者模型，而是使用 eventfd() 创建 wakeupFd 作为线程之间的通知唤醒逻辑，效率是很高的
 > - Libevent 中使用 socketpair 基于 AF_UNIX 创建双向管道用于线程之间的通信
 
-#### multiple reators
-1. 采用 Reactor 模型和多线程结合的方式，实现了高并发非阻塞网络库，mainReators 和 subReator，实际上是 mainLoop 和 subLoop，包括 Channel 和 Poller
+#### 5.2 Buffer 设计
+**1. Buffer 接口理解**
+
+谁会使用 Buffer？谁写谁读？TcpConnection 会有两个 Buffer 成员，input buffer 与 output buffer。
+- input buffer，TcpConnection 会从 socket 读取数据，然后写入 input buffer（其实这一步是用 Buffer::readFd() 完成的）；「客户代码」从 input buffer 读取数据。
+- output buffer，「客户代码」会把数据写入 output buffer（其实这一步是用 TcpConnection::send() 完成的）；TcpConnection 从 output buffer 读取数据并写入 socket。
+
+**input 和 output 是针对客户代码而言，客户代码从 input 读，往 output 写。TcpConnection 的读写正好相反。**
+
+**2. 线程安全问题**
+
+Buffer 不是线程安全的，这么做是有意的，原因如下：
+- 对于 input buffer，onMessage() 回调始终发生在该 TcpConnection 所属的那个 IO 线程，应用程序应该在 onMessage() 完成对 input buffer 的操作，并且不要把 input buffer 暴露给其他线程。这样所有对 input buffer 的操作都在同一个线程，Buffer class 不必是线程安全的。
+- 对于 output buffer，应用程序不会直接操作它，而是调用 TcpConnection::send() 来发送数据，后者是线程安全的。
+
+#### 5.3 multiple reators
+1. 采用 Reactor 模型和多线程结合的方式，实现了高并发非阻塞网络库，mainReator 和 subReator，实际上是 mainLoop 和 subLoop，包括 Channel 和 Poller
 2. EventLoop 就是图中的 Reactor 和 Demultiplex
 ![reactor](./images/reactor.png)
 
-#### 效率高
+#### 5.4 效率高
 1. 在 EventLoop 中注册回调 cb 至 pendingFunctors_，并在 doPendingFunctors 中通过 swap() 的方式，快速换出注册的回调，只在 swap() 时加锁，减少代码临界区长度，提升效率。
 > 若不通过 swap() 的方式去处理，而是加锁执行 pendingFunctors 中的回调，然后解锁，会出现什么问题呢？
 > - 临界区过大，锁降低了服务器响应效率 
@@ -124,7 +139,7 @@ EventLoop 中使用了 eventfd 来调用 wakeup()，让 mainloop 唤醒 subloop 
 
 2. Logger可以设置日志等级，调试代码时可以开启DEBUG打印日志；若启动服务器，由于日志会影响服务器性能，可适当关闭DEBUG相关日志输出
 
-#### C++11
+#### 5.5 C++11
 1. 使用 C++11 改写原有 muduo 库，不依赖 boost 库
 2. 在 Thread 中通过 C++ Lambda 表达式以及信号量机制保证线程创建时的有序性，只有当线程获取到了其自己的 tid 后，才算启动线程完毕
 3. TcpConnection 继承自 enable_shared_from_this，TcpConnection 对象可以调用 shared_from_this() 方法给其内部回调函数，相当于创建了一个带引用计数的shared_ptr，可参考链接 [link](https://blog.csdn.net/gc348342215/article/details/123215888)，同时通过 tie() 方式解决了 TcpConnection 对象生命周期先于 Channel 结束的情况
@@ -137,6 +152,7 @@ EventLoop 中使用了 eventfd 来调用 wakeup()，让 mainloop 唤醒 subloop 
 ### 7、参考
 
 - 施磊--【高级】手写C++ Muduo网络库项目-掌握高性能网络库实现原理
+- [Muduo 设计与实现之一：Buffer 类的设计](https://www.cnblogs.com/Solstice/archive/2011/04/17/2018801.html)
 - [深入掌握C++智能指针](https://blog.csdn.net/QIANGWEIYUAN/article/details/88562935)
 - [C++智能指针的enable_shared_from_this和shared_from_this机制](https://blog.csdn.net/QIANGWEIYUAN/article/details/88973735)
 - [C++ muduo网络库知识分享01 - Linux平台下muduo网络库源码编译安装](https://blog.csdn.net/QIANGWEIYUAN/article/details/89023980)

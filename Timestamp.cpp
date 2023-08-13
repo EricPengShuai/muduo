@@ -10,7 +10,7 @@ Timestamp Timestamp::now() { return Timestamp(time(NULL)); }
 
 std::string Timestamp::toString() const {
     char buf[128] = {0};
-    //!NOTE: localtime 参数是秒数，time(NULL) 返回的也是描述 
+    //!NOTE: localtime 参数是秒数，time(NULL) 返回的也是秒数
     tm *tm_time = localtime(&secondsSinceEpoch_);
     snprintf(buf,
              128,

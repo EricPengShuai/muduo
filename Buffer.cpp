@@ -5,7 +5,7 @@
 #include <unistd.h>
 
 /**
- * !NOTE: 从 fd 读数据，相当于读到 buffer 的写缓冲区
+ * !NOTE: [TcpConn inputBuffer 视角] 从 fd 读数据，相当于读到 buffer 的写缓冲区
  * 从 fd 上读数据，Poller 工作在 LT 模式
  * Buffer 缓冲区是有大小的，但是从 fd 上读取数据的时候却不知道 tcp 数据最终的大小
  */
@@ -38,7 +38,7 @@ ssize_t Buffer::readFd(int fd, int *saveErrno) {
 
 Buffer::~Buffer() {}
 
-//!NOTE: 向 fd 写数据，相当于就是从 buffer 读缓存区拿数据
+//!NOTE: [TcpConn outputBuffer 视角] 向 fd 写数据，相当于就是从 buffer 读缓存区拿数据
 ssize_t Buffer::writeFd(int fd, int *saveErrno) {
     ssize_t n = ::write(fd, peek(), readableBytes());
     if (n < 0) {
