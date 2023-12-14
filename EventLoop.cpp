@@ -124,7 +124,7 @@ void EventLoop::queueInLoop(Functor cb) {
     // 唤醒相应的，需要执行上面回调操作的 loop 的线程了
     //!NOTE: callingPendingFunctors_ 当前 loop 正在执行回调，但是 loop 又有了新的回调，因此还需要唤醒 poller 以便再次执行
     if (!isInLoopThread() || callingPendingFunctors_) {
-        wakeup();  // 唤醒 loop 就在线程
+        wakeup();  // 唤醒 loop 所在线程
     }
 }
 
@@ -165,7 +165,7 @@ void EventLoop::doPendingFunctors() {
     }
 
     for (const Functor &functor : functors) {
-        functor();  // 执行当前
+        functor();  // 执行当前 loop 需要执行的回调操作
     }
 
     callingPendingFunctors_ = false;

@@ -111,9 +111,39 @@ EventLoop 中使用了 eventfd 来调用 wakeup()，让 mainloop 唤醒 subloop 
 > - mainLoop 和 subLoop 之间没有使用同步队列，没有使用生产者消费者模型，而是使用 eventfd() 创建 wakeupFd 作为线程之间的通知唤醒逻辑，效率是很高的
 > - Libevent 中使用 socketpair 基于 AF_UNIX 创建双向管道用于线程之间的通信
 
+==注意多线程的之间的通信方式==
+这里并没有使用传统的「生产者消费者模型的安全队列」，而是直接使用 eventfd() 作为多线程之间的唤醒机制，底层在于 runInLoop 和 queueInLoop（参考 [EventLoop.cpp](EventLoop.cpp)）
+- 如果当前线程就是 EventLoop 所在线程直接直接回调
+- 否则就直接 queueInLoop，并且 wakeup EventLoop 所在线程
+```cpp
+// 在当前 loop 中执行 cb
+void EventLoop::runInLoop(Functor cb) {
+    if (isInLoopThread()) {  // 在当前的 loop 线程中执行 cb
+        cb();
+    } else {  // 在非当前 loop 线程中执行 cb，就需要唤醒 loop 所在线程，执行 cb
+        queueInLoop(cb);
+    }
+}
+
+// 把 cb 放入队列中，唤醒 loop 所在的线程，执行 cb
+void EventLoop::queueInLoop(Functor cb) {
+    {
+        std::unique_lock<std::mutex> lock(mutex_);
+        pendingFunctors_.emplace_back(cb);
+    }
+
+    // 唤醒相应的，需要执行上面回调操作的 loop 的线程了
+    //!NOTE: callingPendingFunctors_ 当前 loop 正在执行回调，但是 loop 又有了新的回调，因此还需要唤醒 poller 以便再次执行
+    if (!isInLoopThread() || callingPendingFunctors_) {
+        wakeup();  // 唤醒 loop 就在线程
+    }
+}
+```
+
+
 #### ==5.2 Buffer 设计==
 **1. send 数据过程**
-考虑一个场景程序想通过 TCP 发送 100k 字节的数据，但是 write() 系统调用只能写入 80k 字节的数据（TCP 内核缓冲区只有 80k 空间了），此时肯定不能原地等待，**因此需要 outputBuffer 来剩余的 20k 数据**
+考虑一个场景程序想通过 TCP 发送 100k 字节的数据，但是 write() 系统调用只能写入 80k 字节的数据（TCP 内核缓冲区只有 80k 空间了），此时肯定不能原地等待，**因此需要 outputBuffer 来存储剩余的 20k 数据**
 - 注意剩余 20k 数据写入 outputBuffer 的 writeIdx 其实地址（append() 函数调用）
 - 然后注册 PULLOUT 事件（enableWriting() 注册写事件）
 - 最后通过绑定的回调 handleWrite() 将 outputBuffer 之前的数据发送过去，从 readIdx 开始读取（注意理解 buffer 的 readIdx 和 writeIdx 下标用法，十分巧妙）
@@ -142,7 +172,7 @@ Buffer 不是线程安全的，这么做是有意的，原因如下：
 #### 5.3 multiple reators
 1. 采用 Reactor 模型和多线程结合的方式，实现了高并发非阻塞网络库，mainReator 和 subReator，实际上是 mainLoop 和 subLoop，包括 Channel 和 Poller
 2. EventLoop 就是图中的 Reactor 和 Demultiplex
-![reactor](./images/reactor.png)
+![reactor](images/reactor.png)
 
 #### 5.4 效率高
 1. 在 EventLoop 中注册回调 cb 至 pendingFunctors_，并在 doPendingFunctors 中通过 swap() 的方式，快速换出注册的回调，只在 swap() 时加锁，减少代码临界区长度，提升效率。
